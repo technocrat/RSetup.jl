@@ -1,0 +1,12 @@
+name = "RSetup"
+uuid = "b4c0c0c0-0000-0000-0000-000000000001"  # You'll need to generate a new UUID
+authors = ["Your Name <your.email@example.com>"]
+version = "0.1.0"
+
+[deps]
+RCall = "6f49c342-dc21-5d91-9882-a32aef131414"
+Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
+
+[compat]
+julia = "1.6"
+RCall = "0.13" 
