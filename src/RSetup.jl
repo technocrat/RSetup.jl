@@ -127,7 +127,8 @@ const R_PACKAGES = [
     "mime",
     "shiny",
     "miniUI",
-    "manipulateWidget"
+    "manipulateWidget",
+    "classInt"
 ]
 
 const R_CHECK_CODE = """
