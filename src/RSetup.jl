@@ -15,170 +15,64 @@ A module for managing R package dependencies and environment setup.
 - `SETUP_COMPLETE`: Boolean indicating if R environment setup is complete
 - `R_LIBPATH`: Path to R library directory
 - `R_PACKAGES`: Array of required R package names
-- `R_CHECK_CODE`: R code for checking package installation
-- `R_INSTALL_CODE`: R code for installing missing packages
 
 # Functions
 - `setup_r_environment()`: Initialize R environment and verify package installation
 - `check_r_packages()`: Verify all required R packages are installed
 """
-module RSetup
 
 # Constants
 const SETUP_COMPLETE = Ref{Bool}(false)
 const R_LIBPATH = Ref{String}("")
 const R_PACKAGES = [
-    "tidyverse",
-    "ggplot2",
-    "dplyr",
-    "tidyr",
-    "readr",
-    "purrr",
-    "tibble",
-    "stringr",
-    "forcats",
-    "lubridate",
-    "scales",
-    "gridExtra",
-    "viridis",
-    "RColorBrewer",
-    "ggthemes",
-    "ggrepel",
-    "ggridges",
-    "ggmap",
-    "sf",
-    "rnaturalearth",
-    "rnaturalearthdata",
-    "rgeos",
-    "rgdal",
-    "sp",
-    "maptools",
-    "maps",
-    "mapdata",
-    "leaflet",
-    "htmlwidgets",
-    "DT",
-    "plotly",
-    "htmltools",
-    "webshot",
-    "png",
-    "jpeg",
-    "tiff",
-    "Cairo",
-    "svglite",
-    "ragg",
-    "showtext",
-    "sysfonts",
-    "extrafont",
-    "extrafontdb",
-    "showtextdb",
-    "Rttf2pt1",
-    "RPostgreSQL",
-    "DBI",
-    "RSQLite",
-    "jsonlite",
-    "httr",
-    "xml2",
-    "rvest",
-    "curl",
-    "openssl",
-    "digest",
-    "memoise",
-    "cachem",
-    "fastmap",
-    "later",
-    "promises",
-    "httpuv",
-    "mime",
-    "shiny",
-    "miniUI",
-    "manipulateWidget",
-    "htmltools",
-    "htmlwidgets",
-    "webshot",
-    "png",
-    "jpeg",
-    "tiff",
-    "Cairo",
-    "svglite",
-    "ragg",
-    "showtext",
-    "sysfonts",
-    "extrafont",
-    "extrafontdb",
-    "showtextdb",
-    "Rttf2pt1",
-    "RPostgreSQL",
-    "DBI",
-    "RSQLite",
-    "jsonlite",
-    "httr",
-    "xml2",
-    "rvest",
-    "curl",
-    "openssl",
-    "digest",
-    "memoise",
-    "cachem",
-    "fastmap",
-    "later",
-    "promises",
-    "httpuv",
-    "mime",
-    "shiny",
-    "miniUI",
-    "manipulateWidget",
     "classInt"
 ]
 
-const R_CHECK_CODE = """
-check_packages <- function(packages) {
-    missing_packages <- packages[!sapply(packages, requireNamespace, quietly = TRUE)]
-    if (length(missing_packages) > 0) {
-        message("Missing packages: ", paste(missing_packages, collapse = ", "))
-        return(FALSE)
-    }
-    return(TRUE)
-}
 """
-
-const R_INSTALL_CODE = """
-install_packages <- function(packages) {
-    for (pkg in packages) {
-        if (!requireNamespace(pkg, quietly = TRUE)) {
-            message("Installing package: ", pkg)
-            install.packages(pkg, repos = "https://cloud.r-project.org/")
-            if (!requireNamespace(pkg, quietly = TRUE)) {
-                stop("Failed to install package: ", pkg)
-            }
-        }
-    }
-    return(TRUE)
-}
-"""
-
-"""
-    setup_r_environment()
+    setup_r_environment(packages::Vector{String}=R_PACKAGES)
 
 Initialize R environment and verify package installation.
+
+Arguments:
+- `packages`: Vector of R package names to install. If not provided, uses the default list in `R_PACKAGES`.
 
 Returns:
 - `Bool`: true if setup successful, false otherwise
 """
-function setup_r_environment()
+function setup_r_environment(packages::Vector{String}=R_PACKAGES)
     try
         # Initialize R environment
-        R"library(base)"
+        rcall(:library, "base")
         
-        # Set R library path
-        R_LIBPATH[] = RCall.reval("R.home('library')")
+        # Get R version and home directory
+        r_version = rcopy(String, R"R.version$version.string")
+        r_home = rcopy(String, R"R.home()")
+        @info "R Version: $r_version"
+        @info "R Home: $r_home"
         
-        # Define R functions
-        RCall.reval(R_CHECK_CODE)
-        RCall.reval(R_INSTALL_CODE)
+        # Set R library path (use the user's library path)
+        lib_paths = rcopy(Vector{String}, rcall(Symbol(".libPaths")))
+        @info "R Library Paths: $(join(lib_paths, "\n"))"
+        
+        # Use the user's library path if available
+        user_lib = filter(p -> occursin("Library/R", p), lib_paths)
+        if !isempty(user_lib)
+            R_LIBPATH[] = user_lib[1]
+            @info "Using user library path: $(R_LIBPATH[])"
+            
+            # Clean up old packages if they exist
+            if isdir(R_LIBPATH[])
+                @info "Cleaning up old packages..."
+                rm(R_LIBPATH[], recursive=true, force=true)
+                mkpath(R_LIBPATH[])
+            end
+        else
+            R_LIBPATH[] = lib_paths[1]
+            @info "Using system library path: $(R_LIBPATH[])"
+        end
         
         # Check and install packages
-        if !check_r_packages()
+        if !check_r_packages(packages)
             @warn "Failed to check/install R packages"
             return false
         end
@@ -192,24 +86,42 @@ function setup_r_environment()
 end
 
 """
-    check_r_packages()
+    check_r_packages(packages::Vector{String}=R_PACKAGES)
 
 Verify all required R packages are installed.
+
+Arguments:
+- `packages`: Vector of R package names to check/install. If not provided, uses the default list in `R_PACKAGES`.
 
 Returns:
 - `Bool`: true if all packages are installed, false otherwise
 """
-function check_r_packages()
+function check_r_packages(packages::Vector{String}=R_PACKAGES)
     try
-        # Check if packages are installed
-        result = RCall.reval("check_packages($(R_PACKAGES))")
-        if !result
-            # Try to install missing packages
-            RCall.reval("install_packages($(R_PACKAGES))")
-            # Check again after installation attempt
-            result = RCall.reval("check_packages($(R_PACKAGES))")
+        # First, ensure we have the basic tools
+        @info "Installing remotes package..."
+        rcall(Symbol("install.packages"), "remotes", repos="https://cloud.r-project.org/")
+        
+        for pkg in packages
+            try
+                @info "Checking package: $pkg"
+                if !rcopy(Bool, rcall(:requireNamespace, pkg))
+                    @info "Installing package: $pkg"
+                    rcall(Symbol("install.packages"), pkg, repos="https://cloud.r-project.org/")
+                    if !rcopy(Bool, rcall(:requireNamespace, pkg))
+                        @warn "Failed to install package: $pkg"
+                        return false
+                    end
+                    @info "Successfully installed and loaded package: $pkg"
+                else
+                    @info "Package already installed: $pkg"
+                end
+            catch e
+                @warn "Error with package $pkg" exception=(e, catch_backtrace())
+                return false
+            end
         end
-        return result
+        return true
     catch e
         @warn "Failed to check R packages" exception=(e, catch_backtrace())
         return false
