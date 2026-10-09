@@ -23,15 +23,14 @@ jobs:
           version: '1.11'
       - uses: r-lib/actions/setup-r@v2
       - uses: julia-actions/cache@v2
+      - name: Point RCall at R
+        run: |
+          echo "R_HOME=$(R RHOME)" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$(R RHOME)/lib:$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
       - name: Install dependencies
         env:
           JULIA_PKG_PRECOMPILE_AUTO: 0
         run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
-      - name: R diagnostics
-        run: |
-          which R; R RHOME; ls "$(R RHOME)/lib" || true
-          cat ~/.julia/packages/RCall/*/deps/deps.jl 2>/dev/null; cat ~/.julia/scratchspaces/44cfe95a-1eb2-52ea-b672-e2afdf69b78f/*/build.log 2>/dev/null | tail -20
-          julia --project=docs/ -e 'using Pkg; Pkg.build("RCall"; verbose=true)' 2>&1 | tail -20
       - name: Load package (surface precompile errors)
         run: julia --project=docs/ --compiled-modules=no -e 'using RSetup'
       - name: Build and deploy
