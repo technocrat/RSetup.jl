@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies
         run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
       - name: Load package (surface precompile errors)
-        run: julia --project=docs/ -e 'using RSetup' 2>&1 || julia --project=docs/ -e 'using Pkg; Base.compilecache(Base.identify_package("RSetup"))'
+        run: julia --project=docs/ -e 'using RCall; @show RCall.libR_path; include("src/RSetup.jl")'
       - name: Build and deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
